@@ -1,6 +1,13 @@
 /**
  * POST /api/contributions
- * Endpoint for desktop clients to submit mining contribution snapshots
+ *
+ * ⚠️  DEPRECATED ⚠️
+ * This endpoint is deprecated and will be removed in a future version.
+ *
+ * Desktop workers should connect directly to the proxy server (port 3333) via XMRig.
+ * The dashboard now fetches data from the proxy server API (port 8080).
+ *
+ * This endpoint is kept for backward compatibility only.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -12,6 +19,9 @@ import { PostContributionRequest, PostContributionResponse } from '@/shared/type
 export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
+  // Log deprecation warning
+  console.warn('[DEPRECATED] POST /api/contributions was called. This endpoint is deprecated.');
+  console.warn('Desktop workers should connect to proxy server directly, not the dashboard.');
   try {
     // Get client IP for rate limiting
     const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';

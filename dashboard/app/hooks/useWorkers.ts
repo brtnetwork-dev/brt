@@ -17,7 +17,7 @@ const fetcher = async (url: string): Promise<GetWorkersResponse> => {
 
 export function useWorkers(refreshInterval: number = 5000) {
   const { data, error, isLoading, mutate } = useSWR<GetWorkersResponse>(
-    '/api/workers',
+    '/api/proxy/workers',
     fetcher,
     {
       refreshInterval,
