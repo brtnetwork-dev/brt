@@ -60,7 +60,7 @@ export interface XMRigSummary {
     aes: boolean;
     avx2: boolean;
     x64: boolean;
-    64_bit: boolean;
+    '64_bit': boolean;
     l2: number;
     l3: number;
     cores: number;
