@@ -12,11 +12,85 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
-import { checkRateLimit } from '@/lib/rate-limit';
-import { calculateAndAwardPoints } from '@/lib/points-calculator';
 import { PostContributionRequest, PostContributionResponse } from '@/shared/types/api';
 
 export const runtime = 'edge';
+
+// Rate limiting - inlined for edge runtime compatibility
+interface TokenBucket {
+  tokens: number;
+  lastRefill: number;
+}
+const buckets = new Map<string, TokenBucket>();
+const MAX_TOKENS = 30;
+const REFILL_RATE = 30 / 60;
+
+function checkRateLimit(identifier: string): boolean {
+  const now = Date.now();
+  let bucket = buckets.get(identifier);
+
+  if (!bucket) {
+    bucket = {
+      tokens: MAX_TOKENS - 1,
+      lastRefill: now,
+    };
+    buckets.set(identifier, bucket);
+    return true;
+  }
+
+  const timePassed = now - bucket.lastRefill;
+  const tokensToAdd = (timePassed / 1000) * REFILL_RATE;
+
+  bucket.tokens = Math.min(MAX_TOKENS, bucket.tokens + tokensToAdd);
+  bucket.lastRefill = now;
+
+  if (bucket.tokens >= 1) {
+    bucket.tokens -= 1;
+    return true;
+  }
+
+  return false;
+}
+
+// Points calculation - inlined for edge runtime compatibility
+async function calculateAndAwardPoints(
+  worker: string,
+  currentAccepted: number
+): Promise<{ pointsAwarded: number; reason: string } | null> {
+  try {
+    const previousSnapshot = await sql`
+      SELECT accepted
+      FROM workers_snapshot
+      WHERE worker = ${worker}
+      ORDER BY ts DESC
+      LIMIT 1 OFFSET 1
+    `;
+
+    if (previousSnapshot.rows.length === 0) {
+      return null;
+    }
+
+    const previousAccepted = parseInt(previousSnapshot.rows[0].accepted);
+    const delta = currentAccepted - previousAccepted;
+
+    if (delta <= 0) {
+      return null;
+    }
+
+    const pointsAwarded = delta;
+    const reason = `Accepted ${delta} shares`;
+
+    await sql`
+      INSERT INTO points_ledger (worker, points, reason, ts)
+      VALUES (${worker}, ${pointsAwarded}, ${reason}, NOW())
+    `;
+
+    return { pointsAwarded, reason };
+  } catch (error) {
+    console.error('Error calculating points:', error);
+    return null;
+  }
+}
 
 export async function POST(request: NextRequest) {
   // Log deprecation warning

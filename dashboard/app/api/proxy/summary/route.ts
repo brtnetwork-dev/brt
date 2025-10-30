@@ -30,13 +30,19 @@ export async function GET(_request: NextRequest) {
     const proxyData = await response.json();
 
     // Transform proxy data to dashboard format
+    // xmrig-proxy returns: workers (number), results.accepted, results.rejected, etc.
+    const totalShares = (proxyData.results?.accepted || 0) +
+                        (proxyData.results?.rejected || 0) +
+                        (proxyData.results?.invalid || 0) +
+                        (proxyData.results?.expired || 0);
+
     const summary = {
       totalHashrate: proxyData.hashrate?.total?.[2] || 0, // 10-minute average
-      activeWorkers: proxyData.workers?.active || 0,
-      totalWorkers: proxyData.workers?.total || 0,
-      totalShares: proxyData.results?.shares_total || 0,
-      acceptedShares: proxyData.results?.shares_good || 0,
-      rejectedShares: (proxyData.results?.shares_total || 0) - (proxyData.results?.shares_good || 0),
+      activeWorkers: proxyData.miners?.now || 0, // Currently connected miners
+      totalWorkers: proxyData.workers || 0, // Total workers tracked
+      totalShares,
+      acceptedShares: proxyData.results?.accepted || 0,
+      rejectedShares: (proxyData.results?.rejected || 0) + (proxyData.results?.invalid || 0) + (proxyData.results?.expired || 0),
       uptime: proxyData.uptime || 0,
       timestamp: new Date().toISOString(),
     };

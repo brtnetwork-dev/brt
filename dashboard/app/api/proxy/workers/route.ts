@@ -5,10 +5,27 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { GetWorkersResponse } from '@/shared/types/api';
-import { getWorkerStatus } from '@/lib/worker-status';
 
 export const runtime = 'edge';
 export const revalidate = 0; // Disable caching for real-time data
+
+// Worker status determination - inlined for edge runtime compatibility
+type WorkerStatus = 'active' | 'inactive' | 'offline';
+const ACTIVE_THRESHOLD = 60 * 1000; // 1 minute
+const OFFLINE_THRESHOLD = 5 * 60 * 1000; // 5 minutes
+
+function getWorkerStatus(lastSeenAt: Date): WorkerStatus {
+  const now = new Date();
+  const timeSinceLastSeen = now.getTime() - lastSeenAt.getTime();
+
+  if (timeSinceLastSeen < ACTIVE_THRESHOLD) {
+    return 'active';
+  } else if (timeSinceLastSeen < OFFLINE_THRESHOLD) {
+    return 'inactive';
+  } else {
+    return 'offline';
+  }
+}
 
 export async function GET(_request: NextRequest) {
   try {
@@ -32,17 +49,25 @@ export async function GET(_request: NextRequest) {
     const proxyData = await response.json();
 
     // Transform proxy data to dashboard format
-    const workers = Object.entries(proxyData.workers || {}).map(([workerId, data]: [string, any]) => {
-      const lastSeenAt = data.last_share ? new Date(data.last_share * 1000) : new Date();
+    // xmrig-proxy returns workers as array: [worker_id, ip, ?, accepted, rejected, ?, hashes, timestamp, hashrates...]
+    const workers = (proxyData.workers || []).map((workerData: Array<string | number>) => {
+      const workerId = workerData[0] as string;
+      const accepted = workerData[3] as number;
+      const rejected = workerData[4] as number;
+      const lastShareTimestamp = workerData[7] as number;
+      const hashrate1m = workerData[9] as number;
+      const hashrate10m = workerData[10] as number;
+
+      const lastSeenAt = lastShareTimestamp ? new Date(lastShareTimestamp) : new Date();
       const status = getWorkerStatus(lastSeenAt);
 
       return {
-        worker: workerId,
+        worker: workerId || 'unknown',
         status,
-        hashrate1m: data.hashrate?.total?.[1] || 0,
-        hashrate10m: data.hashrate?.total?.[2] || 0,
-        totalAccepted: data.accepted || 0,
-        totalRejected: data.rejected || 0,
+        hashrate1m: hashrate1m || 0,
+        hashrate10m: hashrate10m || 0,
+        totalAccepted: accepted || 0,
+        totalRejected: rejected || 0,
         totalPoints: 0, // Points come from dashboard database, not proxy
         lastSeenAt: lastSeenAt.toISOString(),
       };

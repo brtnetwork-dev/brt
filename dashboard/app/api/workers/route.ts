@@ -5,10 +5,27 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
-import { getWorkerStatus } from '@/lib/worker-status';
 import { GetWorkersResponse } from '@/shared/types/api';
 
 export const runtime = 'edge';
+
+// Worker status determination - inlined for edge runtime compatibility
+type WorkerStatus = 'active' | 'inactive' | 'offline';
+const ACTIVE_THRESHOLD = 60 * 1000; // 1 minute
+const OFFLINE_THRESHOLD = 5 * 60 * 1000; // 5 minutes
+
+function getWorkerStatus(lastSeenAt: Date): WorkerStatus {
+  const now = new Date();
+  const timeSinceLastSeen = now.getTime() - lastSeenAt.getTime();
+
+  if (timeSinceLastSeen < ACTIVE_THRESHOLD) {
+    return 'active';
+  } else if (timeSinceLastSeen < OFFLINE_THRESHOLD) {
+    return 'inactive';
+  } else {
+    return 'offline';
+  }
+}
 
 export async function GET(_request: NextRequest) {
   try {
