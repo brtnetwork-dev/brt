@@ -9,7 +9,7 @@ import { GetLeaderboardResponse } from '@/shared/types/api';
 
 export const runtime = 'edge';
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const result = await sql`
       WITH worker_stats AS (

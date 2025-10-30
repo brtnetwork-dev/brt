@@ -10,7 +10,7 @@ import { GetWorkersResponse } from '@/shared/types/api';
 
 export const runtime = 'edge';
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     // Get latest snapshot for each worker
     const result = await sql`

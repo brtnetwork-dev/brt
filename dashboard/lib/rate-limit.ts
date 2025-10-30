@@ -14,7 +14,6 @@ const buckets = new Map<string, TokenBucket>();
 
 const MAX_TOKENS = 30; // Maximum requests per minute
 const REFILL_RATE = 30 / 60; // Tokens per second (30 per 60 seconds)
-const REFILL_INTERVAL = 1000; // Check every second
 
 /**
  * Check if a request should be rate limited
