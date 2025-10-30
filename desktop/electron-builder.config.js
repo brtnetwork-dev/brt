@@ -7,6 +7,7 @@ module.exports = {
   },
   files: [
     'dist/**/*',
+    'node_modules/**/*',
     'resources/**/*',
     'package.json',
     '!src/**/*',

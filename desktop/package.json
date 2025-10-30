@@ -5,10 +5,10 @@
   "main": "dist/main/index.js",
   "scripts": {
     "dev": "electron-forge start",
-    "build": "tsc && electron-builder --config electron-builder.config.js",
-    "build:win:arm64": "tsc && electron-builder --config electron-builder.config.js --win portable --arm64",
-    "build:win:x64": "tsc && electron-builder --config electron-builder.config.js --win portable --x64",
-    "build:mac": "tsc && electron-builder --config electron-builder.config.js --mac",
+    "build": "tsc && node scripts/copy-static.js && electron-builder --config electron-builder.config.js",
+    "build:win:arm64": "tsc && node scripts/copy-static.js && electron-builder --config electron-builder.config.js --win portable --arm64",
+    "build:win:x64": "tsc && node scripts/copy-static.js && electron-builder --config electron-builder.config.js --win portable --x64",
+    "build:mac": "tsc && node scripts/copy-static.js && electron-builder --config electron-builder.config.js --mac",
     "lint": "eslint src --ext .ts,.tsx",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "type-check": "tsc --noEmit"

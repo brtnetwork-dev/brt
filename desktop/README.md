@@ -137,6 +137,13 @@ npx electron-builder
 
 ## Troubleshooting
 
+### Blank White Window
+- Cause: production build couldn’t find `dist/renderer/index.html` and/or the renderer JS required Node’s `require()` with `nodeIntegration` disabled.
+- Fix: we copy `src/renderer/index.html` to `dist/renderer/` during build and enable `nodeIntegration` in the main process.
+- Action: clean and rebuild
+  - `npm run build` (or platform-specific build script)
+  - Launch the packaged app from `dist-electron/`
+
 ### XMRig Not Starting
 - Verify binary exists in `resources/xmrig/[platform]/`
 - Check binary has execute permissions (macOS/Linux)
