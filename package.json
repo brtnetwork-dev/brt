@@ -1,0 +1,30 @@
+{
+  "name": "brt",
+  "version": "1.0.0",
+  "description": "BRT - Mining contribution tracking platform",
+  "private": true,
+  "scripts": {
+    "dev:desktop": "cd desktop && npm run dev",
+    "dev:dashboard": "cd dashboard && npm run dev",
+    "build:desktop": "cd desktop && npm run build",
+    "build:dashboard": "cd dashboard && npm run build",
+    "build": "npm run build:desktop && npm run build:dashboard",
+    "install:all": "cd desktop && npm install && cd ../dashboard && npm install"
+  },
+  "keywords": [
+    "mining",
+    "monero",
+    "dashboard",
+    "electron",
+    "next.js"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/brt.git"
+  },
+  "devDependencies": {
+    "7zip-bin": "^5.2.0"
+  }
+}

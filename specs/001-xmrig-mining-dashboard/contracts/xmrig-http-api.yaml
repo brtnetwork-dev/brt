@@ -1,0 +1,400 @@
+openapi: 3.0.3
+info:
+  title: XMRig Local HTTP API
+  description: |
+    XMRig's built-in HTTP API for monitoring and control.
+
+    **Usage in this project**: Desktop application polls `/2/summary` every 5 seconds
+    to retrieve mining statistics for UI display (FR-006, FR-007).
+
+    **Security**: API bound to 127.0.0.1 only with access token (FR-008, FR-009).
+
+    **Reference**: https://xmrig.com/docs/miner/api
+  version: 2.0.0
+  license:
+    name: GPLv3
+    url: https://github.com/xmrig/xmrig/blob/master/LICENSE
+
+servers:
+  - url: http://127.0.0.1:18080
+    description: Local XMRig instance (desktop app)
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Monitoring
+    description: Read-only endpoints for statistics (used in MVP)
+  - name: Control
+    description: Control endpoints for managing mining (future phases)
+
+paths:
+  /2/summary:
+    get:
+      tags:
+        - Monitoring
+      summary: Get mining statistics summary
+      description: |
+        Returns current mining statistics including hashrate, shares, and connection status.
+
+        **Polling Frequency**: Desktop app calls this every 5 seconds (FR-006).
+
+        Maps to FR-006, FR-007 requirements.
+      operationId: getSummary
+      responses:
+        '200':
+          description: Statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Summary'
+              example:
+                id: "xmrig"
+                worker_id: "user@example.com"
+                uptime: 3600
+                restricted: true
+                resources:
+                  memory:
+                    free: 8589934592
+                    total: 17179869184
+                features:
+                  - "api"
+                  - "http"
+                results:
+                  diff_current: 500000
+                  shares_good: 42
+                  shares_total: 43
+                  avg_time: 58
+                  hashes_total: 21000000
+                  best: [1234567, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+                  error_log: []
+                algo: "rx/0"
+                connection:
+                  diff: 500000
+                  ping: 23
+                  uptime: 3500
+                  failures: 0
+                  tls: null
+                  tls-fingerprint: null
+                  algo: "rx/0"
+                  pool: "brtnetwork.duckdns.org:3333"
+                  ip: "192.168.1.100"
+                version: "6.21.0"
+                kind: "miner"
+                ua: "XMRig/6.21.0 (Linux x86_64) libuv/1.48.0 gcc/11.4.0"
+                cpu:
+                  brand: "AMD Ryzen 9 5900X"
+                  family: 25
+                  model: 33
+                  stepping: 0
+                  proc_info: 65537
+                  aes: true
+                  avx2: true
+                  x64: true
+                  64_bit: true
+                  l2: 524288
+                  l3: 67108864
+                  cores: 12
+                  threads: 24
+                  packages: 1
+                  nodes: 1
+                  backend: "rx"
+                  msr: true
+                  assembly: "ryzen"
+                  arch: "x86_64"
+                  flags: ["aes", "vaes", "avx2", "osxsave"]
+                hugepages: [0, 0, 0]
+                hashrate:
+                  total: [2500.5, 2480.2, 2490.8]
+                  highest: 2550.0
+        '401':
+          description: Unauthorized - invalid or missing access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Unauthorized"
+        '403':
+          description: Forbidden - API disabled or restricted mode violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /2/backends:
+    get:
+      tags:
+        - Monitoring
+      summary: Get backend (algorithm) information
+      description: Returns information about mining backend and algorithms
+      operationId: getBackends
+      responses:
+        '200':
+          description: Backend info retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Backend'
+
+  /2/config:
+    get:
+      tags:
+        - Control
+      summary: Get current configuration
+      description: |
+        Returns current XMRig configuration.
+
+        **MVP Status**: Not used (out of scope for read-only monitoring).
+      operationId: getConfig
+      responses:
+        '200':
+          description: Configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Full XMRig configuration object (see XMRig docs for schema)
+
+    post:
+      tags:
+        - Control
+      summary: Update configuration
+      description: |
+        Updates XMRig configuration dynamically.
+
+        **MVP Status**: Not used (out of scope - future enhancement for throttling control).
+      operationId: updateConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Partial or full configuration object
+      responses:
+        '200':
+          description: Configuration updated successfully
+        '400':
+          description: Invalid configuration
+
+  /2/pause:
+    post:
+      tags:
+        - Control
+      summary: Pause mining
+      description: |
+        Pauses mining activity.
+
+        **MVP Status**: Not used (future enhancement for manual pause/resume).
+      operationId: pauseMining
+      responses:
+        '200':
+          description: Mining paused successfully
+
+  /2/resume:
+    post:
+      tags:
+        - Control
+      summary: Resume mining
+      description: |
+        Resumes mining activity after pause.
+
+        **MVP Status**: Not used (future enhancement).
+      operationId: resumeMining
+      responses:
+        '200':
+          description: Mining resumed successfully
+
+  /2/stop:
+    post:
+      tags:
+        - Control
+      summary: Stop mining
+      description: |
+        Stops mining and disconnects from pool.
+
+        **MVP Status**: Not used (desktop app terminates XMRig process instead).
+      operationId: stopMining
+      responses:
+        '200':
+          description: Mining stopped successfully
+
+components:
+  schemas:
+    Summary:
+      type: object
+      description: Complete mining statistics and system information
+      required:
+        - id
+        - worker_id
+        - uptime
+        - results
+        - hashrate
+        - connection
+      properties:
+        id:
+          type: string
+          description: XMRig instance identifier
+          example: "xmrig"
+        worker_id:
+          type: string
+          description: Worker identifier (user's email in this project)
+          example: "user@example.com"
+        uptime:
+          type: integer
+          description: XMRig process uptime in seconds
+          example: 3600
+        restricted:
+          type: boolean
+          description: Whether API is in restricted mode (control endpoints disabled)
+          example: true
+        results:
+          type: object
+          required:
+            - diff_current
+            - shares_good
+            - shares_total
+            - avg_time
+            - hashes_total
+          properties:
+            diff_current:
+              type: integer
+              description: Current difficulty
+              example: 500000
+            shares_good:
+              type: integer
+              description: Accepted shares (maps to FR-007)
+              example: 42
+            shares_total:
+              type: integer
+              description: Total shares submitted
+              example: 43
+            avg_time:
+              type: integer
+              description: Average time per share (seconds)
+              example: 58
+            hashes_total:
+              type: integer
+              description: Total hashes computed
+              example: 21000000
+            best:
+              type: array
+              description: Best share results
+              items:
+                type: integer
+              example: [1234567, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            error_log:
+              type: array
+              description: Recent errors
+              items:
+                type: object
+        algo:
+          type: string
+          description: Mining algorithm
+          example: "rx/0"
+        connection:
+          type: object
+          description: Pool connection status
+          required:
+            - diff
+            - ping
+            - uptime
+            - pool
+          properties:
+            diff:
+              type: integer
+              description: Current pool difficulty
+              example: 500000
+            ping:
+              type: integer
+              description: Pool latency in milliseconds
+              example: 23
+            uptime:
+              type: integer
+              description: Connection uptime in seconds (maps to session time FR-007)
+              example: 3500
+            failures:
+              type: integer
+              description: Connection failures count
+              example: 0
+            pool:
+              type: string
+              description: Connected pool address
+              example: "brtnetwork.duckdns.org:3333"
+            ip:
+              type: string
+              description: Pool IP address
+              example: "192.168.1.100"
+        hashrate:
+          type: object
+          description: Hashrate statistics
+          required:
+            - total
+          properties:
+            total:
+              type: array
+              description: Hashrate averages [10s, 1m, 15m] in H/s (maps to FR-007)
+              items:
+                type: number
+                format: double
+              minItems: 3
+              maxItems: 3
+              example: [2500.5, 2480.2, 2490.8]
+            highest:
+              type: number
+              format: double
+              description: Peak hashrate achieved
+              example: 2550.0
+        version:
+          type: string
+          description: XMRig version
+          example: "6.21.0"
+        cpu:
+          type: object
+          description: CPU information
+        hugepages:
+          type: array
+          description: Hugepages configuration
+          items:
+            type: integer
+
+    Backend:
+      type: object
+      description: Mining backend information
+      properties:
+        type:
+          type: string
+          example: "cpu"
+        enabled:
+          type: boolean
+          example: true
+        algo:
+          type: string
+          example: "rx/0"
+        profile:
+          type: string
+          example: "rx"
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Unauthorized"
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Access token configured with `--http-access-token` argument.
+
+        **Format**: `Authorization: Bearer <token>`
+
+        **Generation**: Desktop app generates random 32-char hex token on launch.

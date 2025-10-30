@@ -1,0 +1,30 @@
+{
+  "name": "brt-dashboard",
+  "version": "1.0.0",
+  "description": "BRT web dashboard",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "format": "prettier --write \"**/*.{ts,tsx,json,css}\"",
+    "type-check": "tsc --noEmit",
+    "db:init": "node -e \"require('child_process').execSync('psql $DATABASE_URL < sql/schema.sql', {stdio: 'inherit'})\""
+  },
+  "dependencies": {
+    "next": "^14.0.4",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@vercel/postgres": "^0.5.1",
+    "swr": "^2.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "typescript": "^5.3.3",
+    "eslint": "^8.56.0",
+    "eslint-config-next": "^14.0.4",
+    "prettier": "^3.1.1"
+  }
+}

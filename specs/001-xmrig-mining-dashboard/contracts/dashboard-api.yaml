@@ -1,0 +1,370 @@
+openapi: 3.0.3
+info:
+  title: XMRig Mining Dashboard API
+  description: |
+    Internal API for the XMRig Mining Contribution Dashboard web application.
+
+    This API provides:
+    - Proxied access to mining statistics from external proxy server
+    - Scheduled snapshot capture for point calculation
+
+    All endpoints are deployed as Vercel Edge Functions for minimal cold start.
+  version: 1.0.0
+  contact:
+    name: XMRig Dashboard Team
+  license:
+    name: MIT
+
+servers:
+  - url: https://your-dashboard.vercel.app/api
+    description: Production (Vercel)
+  - url: http://localhost:3000/api
+    description: Local development
+
+tags:
+  - name: Proxy
+    description: Proxy endpoints for external mining statistics
+  - name: Cron
+    description: Scheduled job endpoints (Vercel Cron only)
+
+paths:
+  /proxy/summary:
+    get:
+      tags:
+        - Proxy
+      summary: Get network-wide mining summary
+      description: |
+        Retrieves aggregated mining statistics from the external proxy server.
+
+        **Data Source**: `http://brtnetwork.duckdns.org:8080/1/summary`
+        **Fallback**: `/` endpoint if primary fails
+        **Refresh Rate**: Client should poll every 5 seconds (FR-013)
+
+        Maps to FR-010 requirement.
+      operationId: getProxySummary
+      responses:
+        '200':
+          description: Summary statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProxySummary'
+              example:
+                uptime: 86400
+                total_workers: 5
+                hashrate:
+                  total: 12500
+                results:
+                  accepted: 1024
+                  rejected: 15
+        '429':
+          description: Rate limit exceeded (30 req/min per IP)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Rate limit exceeded"
+                message: "Too many requests from this IP. Try again in 60 seconds."
+        '502':
+          description: External proxy server unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Proxy unreachable"
+                message: "Unable to fetch data from mining proxy"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /proxy/workers:
+    get:
+      tags:
+        - Proxy
+      summary: Get list of active workers
+      description: |
+        Retrieves per-worker mining statistics from the external proxy server.
+
+        **Data Source**: `http://brtnetwork.duckdns.org:8080/1/workers`
+        **Fallback**: `/workers.json` endpoint if primary fails
+        **Refresh Rate**: Client should poll every 5 seconds (FR-013)
+
+        Maps to FR-010, FR-012 requirements.
+      operationId: getProxyWorkers
+      responses:
+        '200':
+          description: Worker list retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProxyWorkersResponse'
+              example:
+                workers:
+                  - worker: "user1@example.com"
+                    hashrate:
+                      total: [2500, 2480, 2490]
+                    accepted: 205
+                    rejected: 3
+                    last_share: 1698765432
+                    online: true
+                  - worker: "user2@example.com"
+                    hashrate:
+                      total: [3200, 3180, 3175]
+                    accepted: 312
+                    rejected: 5
+                    last_share: 1698765430
+                    online: true
+        '429':
+          $ref: '#/paths/~1proxy~1summary/get/responses/429'
+        '502':
+          $ref: '#/paths/~1proxy~1summary/get/responses/502'
+        '500':
+          $ref: '#/paths/~1proxy~1summary/get/responses/500'
+
+  /cron/snapshot:
+    post:
+      tags:
+        - Cron
+      summary: Capture worker snapshots and calculate points
+      description: |
+        **Vercel Cron Job Only** - Called automatically every 10 minutes.
+
+        Workflow:
+        1. Fetch current workers from proxy API
+        2. For each worker:
+           - Insert snapshot record into `workers_snapshot` table
+           - Calculate points (delta from last snapshot)
+           - Insert points entry into `points_ledger` table
+        3. Return summary of processed workers
+
+        Maps to FR-020, FR-021, FR-022 requirements.
+
+        **Authentication**: Requires Vercel Cron secret header.
+      operationId: captureSnapshot
+      security:
+        - VercelCronSecret: []
+      responses:
+        '200':
+          description: Snapshot captured successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SnapshotResult'
+              example:
+                success: true
+                timestamp: "2025-10-30T12:00:00Z"
+                workers_processed: 5
+                points_awarded:
+                  - worker: "user1@example.com"
+                    points: 42
+                  - worker: "user2@example.com"
+                    points: 58
+                errors: []
+        '401':
+          description: Unauthorized (invalid cron secret)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Unauthorized"
+                message: "Invalid cron secret header"
+        '500':
+          description: Snapshot failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SnapshotResult'
+              example:
+                success: false
+                timestamp: "2025-10-30T12:00:00Z"
+                workers_processed: 3
+                points_awarded: []
+                errors:
+                  - worker: "user1@example.com"
+                    error: "Database connection timeout"
+
+components:
+  schemas:
+    ProxySummary:
+      type: object
+      required:
+        - uptime
+        - total_workers
+        - hashrate
+        - results
+      properties:
+        uptime:
+          type: integer
+          description: Proxy server uptime in seconds
+          example: 86400
+        total_workers:
+          type: integer
+          description: Number of currently active workers
+          example: 5
+        hashrate:
+          type: object
+          required:
+            - total
+          properties:
+            total:
+              type: integer
+              description: Combined hashrate across all workers (H/s)
+              example: 12500
+        results:
+          type: object
+          required:
+            - accepted
+            - rejected
+          properties:
+            accepted:
+              type: integer
+              description: Total accepted shares (all workers)
+              example: 1024
+            rejected:
+              type: integer
+              description: Total rejected shares (all workers)
+              example: 15
+
+    ProxyWorkersResponse:
+      type: object
+      required:
+        - workers
+      properties:
+        workers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProxyWorker'
+
+    ProxyWorker:
+      type: object
+      required:
+        - worker
+        - hashrate
+        - accepted
+        - rejected
+        - last_share
+        - online
+      properties:
+        worker:
+          type: string
+          format: email
+          description: Worker identifier (user's email)
+          example: "user@example.com"
+        hashrate:
+          type: object
+          required:
+            - total
+          properties:
+            total:
+              type: array
+              description: Hashrate averages [10s, 1m, 15m] in H/s
+              items:
+                type: integer
+              minItems: 3
+              maxItems: 3
+              example: [2500, 2480, 2490]
+        accepted:
+          type: integer
+          description: Total accepted shares for this worker
+          example: 205
+        rejected:
+          type: integer
+          description: Total rejected shares for this worker
+          example: 3
+        last_share:
+          type: integer
+          description: Unix timestamp of last share submission
+          example: 1698765432
+        online:
+          type: boolean
+          description: Whether worker is currently connected
+          example: true
+
+    SnapshotResult:
+      type: object
+      required:
+        - success
+        - timestamp
+        - workers_processed
+        - points_awarded
+        - errors
+      properties:
+        success:
+          type: boolean
+          description: Whether snapshot job completed successfully
+          example: true
+        timestamp:
+          type: string
+          format: date-time
+          description: When snapshot was captured (ISO 8601)
+          example: "2025-10-30T12:00:00Z"
+        workers_processed:
+          type: integer
+          description: Number of workers processed in this snapshot
+          example: 5
+        points_awarded:
+          type: array
+          description: Points awarded to each worker
+          items:
+            type: object
+            required:
+              - worker
+              - points
+            properties:
+              worker:
+                type: string
+                format: email
+                example: "user@example.com"
+              points:
+                type: number
+                format: double
+                description: Points awarded this interval
+                example: 42
+        errors:
+          type: array
+          description: Errors encountered during processing
+          items:
+            type: object
+            required:
+              - worker
+              - error
+            properties:
+              worker:
+                type: string
+                format: email
+                example: "user@example.com"
+              error:
+                type: string
+                example: "Database timeout"
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error type/code
+          example: "Rate limit exceeded"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Too many requests from this IP"
+
+  securitySchemes:
+    VercelCronSecret:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: |
+        Vercel automatically adds this header to cron job requests.
+        Format: `Bearer <CRON_SECRET>`
+
+        Verify with: `request.headers.get('authorization') === 'Bearer ' + process.env.CRON_SECRET`
